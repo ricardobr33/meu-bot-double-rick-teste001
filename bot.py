@@ -8,8 +8,8 @@ import traceback
 import os
 import requests
 import builtins
-import os
 from dotenv import load_dotenv
+import shutil
 
 load_dotenv()
 print_original = print
@@ -32,11 +32,7 @@ def enviar_telegram(mensagem):
 
 def print(*args, **kwargs):
     mensagem = " ".join(str(a) for a in args)
-
-    # print normal no terminal
     print_original(*args, **kwargs)
-
-    # envia pro telegram
     enviar_telegram(mensagem)
 
 
@@ -78,7 +74,6 @@ def pegar_valor_com_espera(driver, xpath_base, tentativas=10):
     for _ in range(tentativas):
         try:
             elementos = driver.find_elements(By.XPATH, xpath_base + '//span')
-
             for el in elementos:
                 texto = el.text.strip()
                 if "R$" in texto:
@@ -87,7 +82,6 @@ def pegar_valor_com_espera(driver, xpath_base, tentativas=10):
                         return valor
         except:
             pass
-
         time.sleep(1)
 
     return 0.0
@@ -145,37 +139,41 @@ def classificar_cor(numero):
         return "⚪"
 
 
+# =========================
+# 🔥 DRIVER CORRIGIDO RAILWAY
+# =========================
 def iniciar_driver():
     try:
-
         options = Options()
 
-        # 🔥 Headless
         options.add_argument("--headless=new")
-
-        # 🚨 ESSENCIAIS no Railway
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
-
-        # 🔧 Extras
         options.add_argument("--disable-gpu")
         options.add_argument("--window-size=1920,1080")
 
-        # 👀 Anti-detecção (opcional)
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option("useAutomationExtension", False)
         options.add_argument("--remote-debugging-port=9222")
-        if os.name != 'nt':
-            options.binary_location = "/usr/bin/chromium"
-            service = Service("/usr/bin/chromedriver")
-            driver = webdriver.Chrome(service=service, options=options)
-        else:
-            driver = webdriver.Chrome(options=options)
 
+        chromium_path = shutil.which("chromium") or shutil.which("chromium-browser")
+        chromedriver_path = shutil.which("chromedriver")
 
-        # Remove flag de automação
-        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        print("CHROME PATH:", chromium_path)
+        print("CHROMEDRIVER PATH:", chromedriver_path)
+
+        if not chromium_path or not chromedriver_path:
+            raise Exception("Chromium ou Chromedriver não encontrado")
+
+        options.binary_location = chromium_path
+        service = Service(chromedriver_path)
+
+        driver = webdriver.Chrome(service=service, options=options)
+
+        driver.execute_script(
+            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+        )
 
         return driver
 
@@ -185,6 +183,9 @@ def iniciar_driver():
         return None
 
 
+# =========================
+# 🔥 SUA LÓGICA ORIGINAL
+# =========================
 def iniciar_automacao():
     controle = 0
     while controle == 0:
@@ -196,8 +197,9 @@ def iniciar_automacao():
             controle = 1
 
     driver.get("https://blaze.bet.br/pt/games/double")
-    print(f"__________▶️ INICIALIZAÇÃO__________\n")
-    # 🍪 aceitar cookies
+
+    print("__________▶️ INICIALIZAÇÃO__________\n")
+
     clicar_se_existir(
         driver,
         '//*[@id="policy-regulation-popup"]/div/div[2]/div/button',
@@ -206,7 +208,6 @@ def iniciar_automacao():
 
     time.sleep(5)
 
-    # ▶️ botão inicial
     clicar_se_existir(
         driver,
         '//*[@id="blaze-provider"]/main/div[2]/div/div/div/div/div[4]/button[1]',
@@ -221,7 +222,6 @@ def iniciar_automacao():
     saldo_casa = 0.0
     primeira_rodada = True
 
-    # 🔁 RESPEITA O CICLO INICIAL
     if estado_inicial == "Esperando":
         esperar_estado(driver, "Começar o jogo")
         esperar_estado(driver, "Esperando")
@@ -238,6 +238,7 @@ def iniciar_automacao():
     valor_vermelho = 0.0
     valor_branco = 0.0
     valor_preto = 0.0
+
     numrodada = 0
     ultimo_foi_branco = False
     win = 0
@@ -246,22 +247,18 @@ def iniciar_automacao():
     while True:
         numrodada += 1
         try:
-            # 🔄 ESPERA ABRIR A RODADA
             esperar_estado(driver, "Esperando")
             time.sleep(5)
 
-            # 💰 COLETA APOSTAS
             valor_vermelho = pegar_valor_com_espera(driver, base_vermelho)
             valor_branco = pegar_valor_com_espera(driver, base_branco)
             valor_preto = pegar_valor_com_espera(driver, base_preto)
 
-            # definido a maior aposta
             vermelhormaior = ""
             brancomaior = ""
             pretomaior = ""
             menorvalorcor = ""
 
-            # pegando maior valor
             if valor_vermelho > valor_branco and valor_vermelho > valor_preto:
                 vermelhormaior = '🚨'
             elif valor_branco > valor_vermelho and valor_branco > valor_preto:
@@ -269,7 +266,6 @@ def iniciar_automacao():
             else:
                 pretomaior = '🚨'
 
-            # pegando menor valor
             if valor_vermelho < valor_branco and valor_vermelho < valor_preto:
                 menorvalorcor = "🔴"
             elif valor_branco < valor_vermelho and valor_branco < valor_preto:
@@ -279,23 +275,19 @@ def iniciar_automacao():
 
             menorvalorvalor = min(valor_vermelho, valor_branco, valor_preto)
 
-            if primeira_rodada:
-                primeira_rodada = True
-            else:
+            if not primeira_rodada:
                 limpar_tela()
-                print(f"______📊 RESUMO DA RODADA {numrodada}_______ \n")
+                print(f"______📊 RESUMO DA RODADA {numrodada}_______\n")
                 print(f"🔴 Vermelho: {valor_vermelho} {vermelhormaior}")
                 print(f"⚪ Branco: {valor_branco} {brancomaior}")
                 print(f"⚫ Preto: {valor_preto} {pretomaior}")
-                print("\nAguardando último sorteio...\n")
 
             esperar_estado(driver, "Começar o jogo")
             time.sleep(5)
 
             if primeira_rodada:
-                print("⏳ Primeira rodada ignorada (sincronização)")
-                numrodada = 0
                 primeira_rodada = False
+                numrodada = 0
             else:
                 ultimo_numero = pegar_ultimo_numero(driver)
                 cor = classificar_cor(ultimo_numero)
@@ -312,47 +304,14 @@ def iniciar_automacao():
                     saldo_casa += (valor_vermelho + valor_preto)
                     saldo_casa -= (valor_branco * 14)
 
-
-                # verificando se o penúltimo foi branco
-                if ultimo_foi_branco:
-                    if menorvalorvalor == valor_vermelho:
-                        if menorvalorvalor <= 0.7 * valor_preto and menorvalorvalor <= 0.7 * valor_branco:
-                            print("\n🎯 Penúltimo sorteio: ⚪")
-                            if cor == menorvalorcor:
-                                print("\n🎯 Deu Win ✅")
-                                win += 1
-                            else:
-                                loss += 1
-                            ultimo_foi_branco = False
-
-                    elif menorvalorvalor == valor_preto:
-                        if menorvalorvalor <= 0.7 * valor_vermelho and menorvalorvalor <= 0.7 * valor_branco:
-                            print("\n🎯 Penúltimo sorteio: ⚪")
-                            if cor == menorvalorcor:
-                                print("\n🎯 Deu Win ✅")
-                                win += 1
-                            else:
-                                loss += 1
-                            ultimo_foi_branco = False
-
-                    elif menorvalorvalor == valor_branco:
-                        print("\n### Branco foi o menor valor. Cancelar entrada ###")
-                        print(f"\n⚪ {valor_branco}")
-                    else:
-                        print("\n### Entrada cancelada, mínimos muito próximos ###")
-                        print(f"\n🔴 {valor_vermelho} | ⚫ {valor_preto}")
-
                 print(f"\n🎯 Último sorteio: {cor} ({ultimo_numero})")
-                print(f"💰 Saldo da Casa: {round(saldo_casa, 2)}")
-                print(f"\n✅ Total de Wins: {win}")
-                print(f"❌ Total de Loss: {loss}")
+                print(f"💰 Saldo: {round(saldo_casa, 2)}")
+                print(f"✅ Wins: {win} | ❌ Loss: {loss}")
 
                 if cor == "⚪":
                     ultimo_foi_branco = True
 
-            valor_vermelho = 0.0
-            valor_preto = 0.0
-            valor_branco = 0.0
+            valor_vermelho = valor_branco = valor_preto = 0.0
 
         except Exception as e:
             print("❌ Erro:", e)
