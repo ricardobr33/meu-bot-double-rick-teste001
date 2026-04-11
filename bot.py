@@ -17,7 +17,7 @@ print_original = print
 TOKEN = os.getenv("TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-
+print("Ricardo Lindo")
 def enviar_telegram(mensagem):
     try:
         url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
