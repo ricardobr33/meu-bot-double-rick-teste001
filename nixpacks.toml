@@ -8,4 +8,4 @@ cmds = [
 ]
 
 [start]
-cmd = "bot.py"
+cmd = "python bot.py"
