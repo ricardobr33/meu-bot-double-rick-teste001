@@ -11,6 +11,13 @@ import builtins
 from dotenv import load_dotenv
 import shutil
 
+import shutil
+import os
+
+print("chromium:", shutil.which("chromium"))
+print("chromedriver:", shutil.which("chromedriver"))
+print("PATH:", os.environ.get("PATH"))
+
 load_dotenv()
 print_original = print
 
