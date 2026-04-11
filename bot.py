@@ -48,7 +48,7 @@ def classificar_cor(numero):
 
 
 # =========================
-# PLAYWRIGHT DRIVER
+# PLAYWRIGHT STABLE RAILWAY
 # =========================
 def iniciar_browser():
     p = sync_playwright().start()
@@ -62,75 +62,96 @@ def iniciar_browser():
         ]
     )
 
-    page = browser.new_page()
-    return p, browser, page
+    context = browser.new_context()
+    page = context.new_page()
+
+    return p, browser, context, page
 
 
 # =========================
-# BOT PRINCIPAL
+# BOT
 # =========================
 def iniciar_automacao():
-    p, browser, page = iniciar_browser()
-
-    page.goto("https://blaze.bet.br/pt/games/double")
-
-    print("🚀 INICIADO")
-
-    # cookies
-    try:
-        page.click('xpath=//*[@id="policy-regulation-popup"]/div/div[2]/div/button', timeout=5000)
-    except:
-        pass
-
-    time.sleep(5)
+    p, browser, context, page = iniciar_browser()
 
     try:
-        page.click('xpath=//*[@id="blaze-provider"]/main/div[2]/div/div/div/div/div[4]/button[1]', timeout=5000)
-    except:
-        pass
+        page.goto("https://blaze.bet.br/pt/games/double", timeout=60000)
 
-    time.sleep(10)
+        print("🚀 INICIADO")
 
-    print("⏳ carregado")
-
-    saldo = 0.0
-    primeira = True
-
-    while True:
+        # cookies
         try:
-            time.sleep(5)
+            page.click('xpath=//*[@id="policy-regulation-popup"]/div/div[2]/div/button', timeout=5000)
+        except:
+            pass
 
-            # apostas
-            vermelho = page.locator('xpath=//*[@id="roulette"]/div/div[2]/div[2]/div/div/div/div[1]').inner_text()
-            branco = page.locator('xpath=//*[@id="roulette"]/div/div[2]/div[2]/div/div/div/div[2]').inner_text()
-            preto = page.locator('xpath=//*[@id="roulette"]/div/div[2]/div[2]/div/div/div/div[3]').inner_text()
+        time.sleep(5)
 
-            v = extrair_valor(vermelho)
-            b = extrair_valor(branco)
-            p = extrair_valor(preto)
+        # entrar jogo
+        try:
+            page.click('xpath=//*[@id="blaze-provider"]/main/div[2]/div/div/div/div/div[4]/button[1]', timeout=5000)
+        except:
+            pass
 
-            print(f"🔴 {v} ⚪ {b} ⚫ {p}")
+        time.sleep(10)
 
-            time.sleep(5)
+        print("⏳ carregado")
 
-            ultimo = page.locator('xpath=//*[@id="roulette-recent"]/div/div[1]/div[1]/div/div/div').inner_text()
-            numero = extrair_numero(ultimo)
-            cor = classificar_cor(numero)
+        saldo = 0.0
 
-            print(f"🎯 {cor} ({numero})")
+        while True:
+            try:
+                time.sleep(5)
 
-            if cor == "🔴":
-                saldo += (b + p) - (v * 2)
-            elif cor == "⚫":
-                saldo += (v + b) - (p * 2)
-            elif cor == "⚪":
-                saldo += (v + p) - (b * 14)
+                # apostas
+                v = extrair_valor(page.locator('xpath=//*[@id="roulette"]/div/div[2]/div[2]/div/div/div/div[1]').inner_text())
+                b = extrair_valor(page.locator('xpath=//*[@id="roulette"]/div/div[2]/div[2]/div/div/div/div[2]').inner_text())
+                p = extrair_valor(page.locator('xpath=//*[@id="roulette"]/div/div[2]/div[2]/div/div/div/div[3]').inner_text())
 
-            print(f"💰 saldo: {saldo}")
+                print(f"🔴 {v} ⚪ {b} ⚫ {p}")
 
-        except Exception as e:
-            print("erro:", e)
-            time.sleep(2)
+                time.sleep(5)
+
+                ultimo = page.locator('xpath=//*[@id="roulette-recent"]/div/div[1]/div[1]/div/div/div').inner_text()
+                numero = extrair_numero(ultimo)
+                cor = classificar_cor(numero)
+
+                print(f"🎯 {cor} ({numero})")
+
+                if cor == "🔴":
+                    saldo += (b + p) - (v * 2)
+                elif cor == "⚫":
+                    saldo += (v + b) - (p * 2)
+                elif cor == "⚪":
+                    saldo += (v + p) - (b * 14)
+
+                print(f"💰 saldo: {saldo}")
+
+            except Exception as e:
+                print("erro loop:", e)
+
+                # 🔥 RESTART AUTOMÁTICO DO BROWSER (IMPORTANTE NO RAILWAY)
+                try:
+                    browser.close()
+                    context.close()
+                    p.stop()
+                except:
+                    pass
+
+                time.sleep(5)
+
+                p, browser, context, page = iniciar_browser()
+
+    except Exception as e:
+        print("ERRO FATAL:", e)
+
+    finally:
+        try:
+            browser.close()
+            context.close()
+            p.stop()
+        except:
+            pass
 
 
 if __name__ == "__main__":
