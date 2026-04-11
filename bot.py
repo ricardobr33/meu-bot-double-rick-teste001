@@ -17,7 +17,6 @@ print_original = print
 TOKEN = os.getenv("TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-print("Ricardo Lindo")
 def enviar_telegram(mensagem):
     try:
         url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
@@ -201,6 +200,7 @@ def iniciar_driver():
     except Exception:
         traceback.print_exc()
         print("Erro ao iniciar Chrome")
+        print("Ricardo Lindo")
         return None
 # =========================
 # 🔥 SUA LÓGICA ORIGINAL
