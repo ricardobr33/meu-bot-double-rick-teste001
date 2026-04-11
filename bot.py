@@ -17,6 +17,7 @@ print_original = print
 TOKEN = os.getenv("TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
+
 def enviar_telegram(mensagem):
     try:
         url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
@@ -143,54 +144,33 @@ def classificar_cor(numero):
 # =========================
 def iniciar_driver():
     try:
-
         options = Options()
 
-        # 🔥 Headless
         options.add_argument("--headless=new")
-
-        # 🚨 ESSENCIAIS no Railway
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
-
-        # 🔧 Extras
         options.add_argument("--disable-gpu")
         options.add_argument("--window-size=1920,1080")
 
-        # 👀 Anti-detecção (opcional)
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option("useAutomationExtension", False)
         options.add_argument("--remote-debugging-port=9222")
 
-        # =========================
-        # 🔍 DETECÇÃO ROBUSTA (FIX)
-        # =========================
-        chromium_path = (
-            shutil.which("chromium") or
-            shutil.which("chromium-browser") or
-            "/usr/bin/chromium" or
-            "/usr/bin/chromium-browser"
-        )
+        chromium_path = "/nix/store/*/bin/chromium"
+        chromedriver_path = "/nix/store/*/bin/chromedriver"
 
-        chromedriver_path = (
-            shutil.which("chromedriver") or
-            "/usr/bin/chromedriver"
-        )
-
-        print(f"Chrome path: {chromium_path}")
-        print(f"Driver path: {chromedriver_path}")
+        print("CHROME PATH:", chromium_path)
+        print("CHROMEDRIVER PATH:", chromedriver_path)
 
         if not chromium_path or not chromedriver_path:
-            print("❌ Chromium ou Chromedriver não encontrados no ambiente")
-            return None
+            raise Exception("Chromium ou Chromedriver não encontrado")
 
         options.binary_location = chromium_path
         service = Service(chromedriver_path)
 
         driver = webdriver.Chrome(service=service, options=options)
 
-        # Remove flag de automação
         driver.execute_script(
             "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
         )
@@ -200,8 +180,9 @@ def iniciar_driver():
     except Exception:
         traceback.print_exc()
         print("Erro ao iniciar Chrome")
-        print("Ricardo Lindo")
         return None
+
+
 # =========================
 # 🔥 SUA LÓGICA ORIGINAL
 # =========================
