@@ -5,4 +5,4 @@ nixPkgs = ["chromium", "chromedriver"]
 cmds = ["pip install -r requirements.txt"]
 
 [start]
-cmd = "python seu_arquivo.py"
+cmd = "bot.py"
