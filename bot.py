@@ -144,45 +144,77 @@ def classificar_cor(numero):
 # =========================
 def iniciar_driver():
     try:
+        from selenium.webdriver.chrome.service import Service
+        from selenium.webdriver.chrome.options import Options
+        import glob
+        import os
+
         options = Options()
 
+        # 🔥 Headless obrigatório no Railway
         options.add_argument("--headless=new")
+
+        # 🚨 essenciais Linux server
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-gpu")
         options.add_argument("--window-size=1920,1080")
 
+        # 🔧 estabilidade extra Railway
+        options.add_argument("--disable-software-rasterizer")
+        options.add_argument("--disable-extensions")
+        options.add_argument("--remote-debugging-port=9222")
+
+        # 👀 anti-detecção leve (não crítico)
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option("useAutomationExtension", False)
-        options.add_argument("--remote-debugging-port=9222")
 
-        chromium_path = "/nix/store/*/bin/chromium"
-        chromedriver_path = "/nix/store/*/bin/chromedriver"
+        # =========================
+        # 🔍 LOCALIZAÇÃO ROBUSTA (RAILWAY / NIX)
+        # =========================
+        chromium_candidates = (
+            glob.glob("/nix/store/*/bin/chromium") +
+            glob.glob("/nix/store/*/bin/chromium-browser") +
+            ["/usr/bin/chromium", "/usr/bin/chromium-browser"]
+        )
 
-        print("CHROME PATH:", chromium_path)
-        print("CHROMEDRIVER PATH:", chromedriver_path)
+        chromedriver_candidates = (
+            glob.glob("/nix/store/*/bin/chromedriver") +
+            ["/usr/bin/chromedriver"]
+        )
+
+        chromium_path = next((p for p in chromium_candidates if os.path.exists(p)), None)
+        chromedriver_path = next((p for p in chromedriver_candidates if os.path.exists(p)), None)
+
+        print("🔎 Chromium encontrado:", chromium_path)
+        print("🔎 Chromedriver encontrado:", chromedriver_path)
 
         if not chromium_path or not chromedriver_path:
-            raise Exception("Chromium ou Chromedriver não encontrado")
+            print("❌ Chrome/Driver não encontrados no Railway")
+            return None
 
+        # ⚙️ força binário correto
         options.binary_location = chromium_path
-        service = Service(chromedriver_path)
+
+        # ⚙️ serviço manual (NUNCA Selenium Manager)
+        service = Service(executable_path=chromedriver_path)
 
         driver = webdriver.Chrome(service=service, options=options)
 
+        # remove flag webdriver (anti bot básico)
         driver.execute_script(
             "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
         )
 
+        print("✅ Chrome iniciado com sucesso no Railway")
+
         return driver
 
-    except Exception:
+    except Exception as e:
+        print("❌ Erro ao iniciar Chrome:")
         traceback.print_exc()
-        print("Erro ao iniciar Chrome")
         return None
-
-
 # =========================
 # 🔥 SUA LÓGICA ORIGINAL
 # =========================
