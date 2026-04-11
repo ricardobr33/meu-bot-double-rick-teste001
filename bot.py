@@ -1,119 +1,40 @@
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
+from playwright.sync_api import sync_playwright
 import time
 import re
-import traceback
 import os
 import requests
-import builtins
 from dotenv import load_dotenv
-import shutil
-import glob
 
 load_dotenv()
-print_original = print
 
 TOKEN = os.getenv("TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
 
-def enviar_telegram(mensagem):
+def enviar_telegram(msg):
     try:
         url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-        payload = {
-            "chat_id": CHAT_ID,
-            "text": mensagem
-        }
-        requests.post(url, data=payload)
+        requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
     except:
         pass
 
 
-def print(*args, **kwargs):
-    mensagem = " ".join(str(a) for a in args)
-    print_original(*args, **kwargs)
-    enviar_telegram(mensagem)
-
-
-def limpar_tela():
-    os.system('cls' if os.name == 'nt' else 'clear')
-
-
-def clicar_se_existir(driver, xpath, descricao, tentativas=5, espera=2):
-    for _ in range(tentativas):
-        try:
-            elemento = driver.find_element(By.XPATH, xpath)
-            elemento.click()
-            print(f"✅ {descricao} clicado")
-            return True
-        except:
-            time.sleep(espera)
-
-    print(f"⚠️ {descricao} não encontrado (seguindo fluxo)")
-    return False
+def print(*args):
+    msg = " ".join(str(a) for a in args)
+    __builtins__.print(msg)
+    enviar_telegram(msg)
 
 
 def extrair_valor(texto):
     match = re.search(r"[\d.,]+", texto)
     if match:
-        valor = match.group().replace(".", "").replace(",", ".")
-        return float(valor)
+        return float(match.group().replace(".", "").replace(",", "."))
     return 0.0
 
 
 def extrair_numero(texto):
-    match = re.search(r"\d+")
-    if match:
-        return int(match.group())
-    return None
-
-
-def pegar_valor_com_espera(driver, xpath_base, tentativas=10):
-    for _ in range(tentativas):
-        try:
-            elementos = driver.find_elements(By.XPATH, xpath_base + '//span')
-            for el in elementos:
-                texto = el.text.strip()
-                if "R$" in texto:
-                    return extrair_valor(texto)
-        except:
-            pass
-        time.sleep(1)
-
-    return 0.0
-
-
-def esperar_estado(driver, texto_esperado):
-    while True:
-        try:
-            botao = driver.find_element(By.XPATH, '//*[@id="roulette-controller"]/div[1]/div[3]/button')
-            if botao.text.strip() == texto_esperado:
-                return
-        except:
-            pass
-        time.sleep(1)
-
-
-def aguardar_botao(driver):
-    print("🔎 Procurando botão do jogo...")
-    while True:
-        try:
-            botao = driver.find_element(By.XPATH, '//*[@id="roulette-controller"]/div[1]/div[3]/button')
-            if botao.text.strip() in ["Começar o jogo", "Esperando"]:
-                return botao.text.strip()
-        except:
-            pass
-        time.sleep(2)
-
-
-def pegar_ultimo_numero(driver):
-    try:
-        el = driver.find_element(By.XPATH, '//*[@id="roulette-recent"]/div/div[1]/div[1]/div/div/div')
-        return extrair_numero(el.text.strip())
-    except:
-        return None
+    match = re.search(r"\d+", texto)
+    return int(match.group()) if match else None
 
 
 def classificar_cor(numero):
@@ -127,114 +48,88 @@ def classificar_cor(numero):
 
 
 # =========================
-# 🔥 DRIVER RAILWAY BLINDADO
+# PLAYWRIGHT DRIVER
 # =========================
-def iniciar_driver():
-    try:
-        options = Options()
+def iniciar_browser():
+    p = sync_playwright().start()
 
-        # obrigatório Railway
-        options.add_argument("--headless=new")
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--disable-gpu")
-        options.add_argument("--window-size=1920,1080")
-        options.add_argument("--disable-extensions")
-        options.add_argument("--remote-debugging-port=9222")
+    browser = p.chromium.launch(
+        headless=True,
+        args=[
+            "--no-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu"
+        ]
+    )
 
-        options.add_argument("--disable-blink-features=AutomationControlled")
-        options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        options.add_experimental_option("useAutomationExtension", False)
-
-        # 🔥 tenta achar Chromium automaticamente no Railway
-        chromium_path = (
-            shutil.which("chromium") or
-            shutil.which("chromium-browser") or
-            next(iter(glob.glob("/nix/store/*/bin/chromium")), None)
-        )
-
-        chromedriver_path = (
-            shutil.which("chromedriver") or
-            next(iter(glob.glob("/nix/store/*/bin/chromedriver")), None)
-        )
-
-        print("🔎 Chromium:", chromium_path)
-        print("🔎 Driver:", chromedriver_path)
-
-        if not chromium_path or not chromedriver_path:
-            print("❌ Chrome não encontrado no ambiente")
-            return None
-
-        options.binary_location = chromium_path
-        service = Service(chromedriver_path)
-
-        driver = webdriver.Chrome(service=service, options=options)
-
-        driver.execute_script(
-            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
-        )
-
-        print("✅ Chrome iniciado com sucesso")
-        return driver
-
-    except Exception:
-        traceback.print_exc()
-        return None
+    page = browser.new_page()
+    return p, browser, page
 
 
 # =========================
-# 🔥 SUA LÓGICA ORIGINAL
+# BOT PRINCIPAL
 # =========================
 def iniciar_automacao():
-    while True:
-        driver = iniciar_driver()
-        if driver:
-            break
-        print("⏳ Tentando novamente driver...")
-        time.sleep(10)
+    p, browser, page = iniciar_browser()
 
-    driver.get("https://blaze.bet.br/pt/games/double")
+    page.goto("https://blaze.bet.br/pt/games/double")
 
-    print("__________▶️ INICIALIZAÇÃO__________")
+    print("🚀 INICIADO")
 
-    clicar_se_existir(driver,
-        '//*[@id="policy-regulation-popup"]/div/div[2]/div/button',
-        "Aceitar cookies"
-    )
+    # cookies
+    try:
+        page.click('xpath=//*[@id="policy-regulation-popup"]/div/div[2]/div/button', timeout=5000)
+    except:
+        pass
 
     time.sleep(5)
 
-    clicar_se_existir(driver,
-        '//*[@id="blaze-provider"]/main/div[2]/div/div/div/div/div[4]/button[1]',
-        "Entrar no jogo"
-    )
+    try:
+        page.click('xpath=//*[@id="blaze-provider"]/main/div[2]/div/div/div/div/div[4]/button[1]', timeout=5000)
+    except:
+        pass
 
     time.sleep(10)
 
-    aguardar_botao(driver)
+    print("⏳ carregado")
 
-    print("🚀 BOT INICIADO")
+    saldo = 0.0
+    primeira = True
 
     while True:
         try:
-            esperar_estado(driver, "Esperando")
-            time.sleep(3)
+            time.sleep(5)
 
-            vermelho = pegar_valor_com_espera(driver, '//*[@id="roulette"]/div/div[2]/div[2]/div/div/div/div[1]')
-            branco = pegar_valor_com_espera(driver, '//*[@id="roulette"]/div/div[2]/div[2]/div/div/div/div[2]')
-            preto = pegar_valor_com_espera(driver, '//*[@id="roulette"]/div/div[2]/div[2]/div/div/div/div[3]')
+            # apostas
+            vermelho = page.locator('xpath=//*[@id="roulette"]/div/div[2]/div[2]/div/div/div/div[1]').inner_text()
+            branco = page.locator('xpath=//*[@id="roulette"]/div/div[2]/div[2]/div/div/div/div[2]').inner_text()
+            preto = page.locator('xpath=//*[@id="roulette"]/div/div[2]/div[2]/div/div/div/div[3]').inner_text()
 
-            print(f"🔴 {vermelho} ⚪ {branco} ⚫ {preto}")
+            v = extrair_valor(vermelho)
+            b = extrair_valor(branco)
+            p = extrair_valor(preto)
 
-            esperar_estado(driver, "Começar o jogo")
+            print(f"🔴 {v} ⚪ {b} ⚫ {p}")
 
-            ultimo = pegar_ultimo_numero(driver)
-            cor = classificar_cor(ultimo)
+            time.sleep(5)
 
-            print(f"🎯 Resultado: {cor} ({ultimo})")
+            ultimo = page.locator('xpath=//*[@id="roulette-recent"]/div/div[1]/div[1]/div/div/div').inner_text()
+            numero = extrair_numero(ultimo)
+            cor = classificar_cor(numero)
+
+            print(f"🎯 {cor} ({numero})")
+
+            if cor == "🔴":
+                saldo += (b + p) - (v * 2)
+            elif cor == "⚫":
+                saldo += (v + b) - (p * 2)
+            elif cor == "⚪":
+                saldo += (v + p) - (b * 14)
+
+            print(f"💰 saldo: {saldo}")
 
         except Exception as e:
-            print("❌ erro loop:", e)
+            print("erro:", e)
             time.sleep(2)
 
 
