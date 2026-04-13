@@ -1,11 +1,14 @@
-from playwright.sync_api import sync_playwright
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
 import time
-import re
-import os
 import requests
+from datetime import datetime
+import os
 from dotenv import load_dotenv
 
 load_dotenv()
+
 
 TOKEN = os.getenv("TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
@@ -14,145 +17,72 @@ CHAT_ID = os.getenv("CHAT_ID")
 def enviar_telegram(msg):
     try:
         url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-        requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
-    except:
-        pass
+        requests.post(url, data={
+            "chat_id": CHAT_ID,
+            "text": msg,
+            "parse_mode": "HTML"
+        })
+    except Exception as e:
+        print("Erro ao enviar mensagem:", e)
 
+# CONFIG DO NAVEGADOR
+options = Options()
+options.add_argument("--headless=new")
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-dev-shm-usage")
+options.add_argument("--disable-gpu")
+options.add_argument("--window-size=1920,1080")
+options.add_argument("--disable-blink-features=AutomationControlled")
 
-def print(*args):
-    msg = " ".join(str(a) for a in args)
-    __builtins__.print(msg)
-    enviar_telegram(msg)
+driver = webdriver.Chrome(options=options)
+driver.get("https://blaze.com/pt/games/double")
 
+time.sleep(10)  # tempo pra carregar
 
-def extrair_valor(texto):
-    match = re.search(r"[\d.,]+", texto)
-    if match:
-        return float(match.group().replace(".", "").replace(",", "."))
-    return 0.0
+ultimo_resultado = None
 
+def definir_cor(numero):
+    if numero == 0:
+        return "⚪ BRANCO", "⚪"
+    elif 1 <= numero <= 7:
+        return "🔴 VERMELHO", "🔴"
+    else:
+        return "⚫ PRETO", "⚫"
 
-def extrair_numero(texto):
-    match = re.search(r"\d+", texto)
-    return int(match.group()) if match else None
+def montar_mensagem(numero, cor, emoji):
+    horario = datetime.now().strftime("%H:%M:%S")
 
+    return f"""
+<b>🎰 RESULTADO BLAZE DOUBLE</b>
 
-def classificar_cor(numero):
-    if numero is None:
-        return "⚪"
-    if 1 <= numero <= 7:
-        return "🔴"
-    if 8 <= numero <= 14:
-        return "⚫"
-    return "⚪"
+{emoji} <b>Cor:</b> {cor}
+🔢 <b>Número:</b> {numero}
 
+⏰ <b>Horário:</b> {horario}
 
-# =========================
-# PLAYWRIGHT STABLE RAILWAY
-# =========================
-def iniciar_browser():
-    p = sync_playwright().start()
+━━━━━━━━━━━━━━━
+🔥 <b>Novo giro detectado!</b>
+"""
 
-    browser = p.chromium.launch(
-        headless=True,
-        args=[
-            "--no-sandbox",
-            "--disable-dev-shm-usage",
-            "--disable-gpu"
-        ]
-    )
-
-    context = browser.new_context()
-    page = context.new_page()
-
-    return p, browser, context, page
-
-
-# =========================
-# BOT
-# =========================
-def iniciar_automacao():
-    p, browser, context, page = iniciar_browser()
-
+while True:
     try:
-        page.goto("https://blaze.bet.br/pt/games/double", timeout=60000)
+        # 🔥 PEGA O ÚLTIMO NÚMERO DA TELA
+        elementos = driver.find_elements(By.CLASS_NAME, "entry")
 
-        print("🚀 INICIADO")
+        if elementos:
+            numero = int(elementos[0].text)
 
-        # cookies
-        try:
-            page.click('xpath=//*[@id="policy-regulation-popup"]/div/div[2]/div/button', timeout=5000)
-        except:
-            pass
+            if numero != ultimo_resultado:
+                ultimo_resultado = numero
 
-        time.sleep(5)
+                cor, emoji = definir_cor(numero)
 
-        # entrar jogo
-        try:
-            page.click('xpath=//*[@id="blaze-provider"]/main/div[2]/div/div/div/div/div[4]/button[1]', timeout=5000)
-        except:
-            pass
+                msg = montar_mensagem(numero, cor, emoji)
+                print(msg)
 
-        time.sleep(10)
-
-        print("⏳ carregado")
-
-        saldo = 0.0
-
-        while True:
-            try:
-                time.sleep(5)
-
-                # apostas
-                v = extrair_valor(page.locator('xpath=//*[@id="roulette"]/div/div[2]/div[2]/div/div/div/div[1]').inner_text())
-                b = extrair_valor(page.locator('xpath=//*[@id="roulette"]/div/div[2]/div[2]/div/div/div/div[2]').inner_text())
-                p = extrair_valor(page.locator('xpath=//*[@id="roulette"]/div/div[2]/div[2]/div/div/div/div[3]').inner_text())
-
-                print(f"🔴 {v} ⚪ {b} ⚫ {p}")
-
-                time.sleep(5)
-
-                ultimo = page.locator('xpath=//*[@id="roulette-recent"]/div/div[1]/div[1]/div/div/div').inner_text()
-                numero = extrair_numero(ultimo)
-                cor = classificar_cor(numero)
-
-                print(f"🎯 {cor} ({numero})")
-
-                if cor == "🔴":
-                    saldo += (b + p) - (v * 2)
-                elif cor == "⚫":
-                    saldo += (v + b) - (p * 2)
-                elif cor == "⚪":
-                    saldo += (v + p) - (b * 14)
-
-                print(f"💰 saldo: {saldo}")
-
-            except Exception as e:
-                print("erro loop:", e)
-
-                # 🔥 RESTART AUTOMÁTICO DO BROWSER (IMPORTANTE NO RAILWAY)
-                try:
-                    browser.close()
-                    context.close()
-                    p.stop()
-                except:
-                    pass
-
-                time.sleep(5)
-
-                p, browser, context, page = iniciar_browser()
+                enviar_telegram(msg)
 
     except Exception as e:
-        print("ERRO FATAL:", e)
+        print("Erro:", e)
 
-    finally:
-        try:
-            browser.close()
-            context.close()
-            p.stop()
-        except:
-            pass
-
-
-if __name__ == "__main__":
-    iniciar_automacao()
+    time.sleep(3)
