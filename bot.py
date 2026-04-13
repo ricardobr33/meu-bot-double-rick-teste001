@@ -1,6 +1,9 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+
 import time
 import requests
 from datetime import datetime
@@ -9,10 +12,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-
 TOKEN = os.getenv("TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
-
 
 def enviar_telegram(msg):
     try:
@@ -25,7 +26,7 @@ def enviar_telegram(msg):
     except Exception as e:
         print("Erro ao enviar mensagem:", e)
 
-# CONFIG DO NAVEGADOR
+# 🔥 CONFIG DO NAVEGADOR (OTIMIZADO PRA SERVIDOR)
 options = Options()
 options.add_argument("--headless=new")
 options.add_argument("--no-sandbox")
@@ -34,7 +35,12 @@ options.add_argument("--disable-gpu")
 options.add_argument("--window-size=1920,1080")
 options.add_argument("--disable-blink-features=AutomationControlled")
 
-driver = webdriver.Chrome(options=options)
+# 👇 DRIVER CORRIGIDO (ESSENCIAL PRA RAILWAY)
+driver = webdriver.Chrome(
+    service=Service(ChromeDriverManager().install()),
+    options=options
+)
+
 driver.get("https://blaze.com/pt/games/double")
 
 time.sleep(10)  # tempo pra carregar
@@ -66,21 +72,24 @@ def montar_mensagem(numero, cor, emoji):
 
 while True:
     try:
-        # 🔥 PEGA O ÚLTIMO NÚMERO DA TELA
         elementos = driver.find_elements(By.CLASS_NAME, "entry")
 
         if elementos:
-            numero = int(elementos[0].text)
+            texto = elementos[0].text.strip()
 
-            if numero != ultimo_resultado:
-                ultimo_resultado = numero
+            # 🔥 evita erro se vier vazio
+            if texto.isdigit():
+                numero = int(texto)
 
-                cor, emoji = definir_cor(numero)
+                if numero != ultimo_resultado:
+                    ultimo_resultado = numero
 
-                msg = montar_mensagem(numero, cor, emoji)
-                print(msg)
+                    cor, emoji = definir_cor(numero)
 
-                enviar_telegram(msg)
+                    msg = montar_mensagem(numero, cor, emoji)
+                    print(msg)
+
+                    enviar_telegram(msg)
 
     except Exception as e:
         print("Erro:", e)
